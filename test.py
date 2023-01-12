@@ -1,26 +1,37 @@
-import cv2
-import numpy as np
+import cv2 as cv
+import time
 
-my_photo = cv2.imread('2.png')
-filterd_image  = cv2.medianBlur(my_photo,7)
-img_grey = cv2.cvtColor(filterd_image,cv2.COLOR_BGR2GRAY)
+Conf_threshold = 0.3
+NMS_threshold = 0.3
 
-#set a thresh
-thresh = 100
+class_name = 'tank'
 
-#get threshold image
-ret,thresh_img = cv2.threshold(img_grey, thresh, 255, cv2.THRESH_BINARY)
+net = cv.dnn.readNet('tanks_final.weights', 'tanks.cfg')
+net.setPreferableBackend(cv.dnn.DNN_BACKEND_CUDA)
+net.setPreferableTarget(cv.dnn.DNN_TARGET_CUDA_FP16)
 
-#find contours
-contours, hierarchy = cv2.findContours(thresh_img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+model = cv.dnn_DetectionModel(net)
+model.setInputParams(size=(416, 416), scale=1 / 255, swapRB=True)
 
-#create an empty image for contours
-img_contours = np.uint8(np.zeros((my_photo.shape[0],my_photo.shape[1])))
+cap = cv.VideoCapture('assets/4.mp4')
 
-cv2.drawContours(img_contours, contours, -1, (255,255,255), 1)
+while True:
+    ret, frame = cap.read()
 
-cv2.imshow('origin', my_photo) # выводим итоговое изображение в окно
-cv2.imshow('res', img_contours) # выводим итоговое изображение в окно
+    if ret == False:
+        break
+    classes, scores, boxes = model.detect(frame, Conf_threshold, NMS_threshold)
+    for (classid, score, box) in zip(classes, scores, boxes):
+        color = (0, 0, 0)
+        label = "%s : %f" % (class_name, score)
+        cv.rectangle(frame, box, color, 1)
+        cv.putText(frame, label, (box[0], box[1] - 10),
+                   cv.FONT_HERSHEY_COMPLEX, 0.3, color, 1)
 
-cv2.waitKey()
-cv2.destroyAllWindows()
+    cv.imshow('frame', frame)
+    key = cv.waitKey(1)
+
+    if key == ord('q'):
+        break
+cap.release()
+cv.destroyAllWindows()
